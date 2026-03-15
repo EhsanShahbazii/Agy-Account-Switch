@@ -8,6 +8,32 @@ class AccountManager {
     constructor() {
         this.manifestPath = paths.MANIFEST_PATH;
         this.accountsDir = paths.ACCOUNTS_DIR;
+        this.initStorage();
+    }
+
+    initStorage() {
+        if (!fs.existsSync(this.accountsDir)) {
+            fs.mkdirSync(this.accountsDir, { recursive: true, mode: 0o700 });
+        }
+        if (!fs.existsSync(this.manifestPath)) {
+            const initial = {
+                activeAccountId: null,
+                accounts: []
+            };
+            fs.writeFileSync(this.manifestPath, JSON.stringify(initial, null, 2), { mode: 0o600 });
+        }
+    }
+
+    readManifest() {
+        try {
+            return JSON.parse(fs.readFileSync(this.manifestPath, "utf-8"));
+        } catch (e) {
+            return { activeAccountId: null, accounts: [] };
+        }
+    }
+
+    writeManifest(data) {
+        fs.writeFileSync(this.manifestPath, JSON.stringify(data, null, 2), { mode: 0o600 });
     }
 }
 
