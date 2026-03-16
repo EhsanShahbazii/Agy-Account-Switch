@@ -35,6 +35,19 @@ class AccountManager {
     writeManifest(data) {
         fs.writeFileSync(this.manifestPath, JSON.stringify(data, null, 2), { mode: 0o600 });
     }
+
+    async listAccounts() {
+        const manifest = this.readManifest();
+        const activeId = manifest.activeAccountId;
+        const accounts = manifest.accounts.map(acc => ({
+            ...acc,
+            isActive: acc.id === activeId
+        }));
+        return {
+            activeAccountId: activeId,
+            accounts
+        };
+    }
 }
 
 module.exports = AccountManager;
