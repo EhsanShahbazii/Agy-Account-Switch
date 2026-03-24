@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
+const { exec } = require("child_process");
 const paths = require("../utils/paths");
 const KeychainHelper = require("./keychain");
 
@@ -45,30 +46,31 @@ class AccountManager {
         };
     }
 
+    restartLanguageServer() {
+        try {
+            exec("pkill -f language_server", (err) => {
+                if (err && err.code !== 1) console.error("Language server restart notice:", err.message);
+            });
+        } catch (e) {}
+    }
+
     async switchAccount(accountId) {
         const manifest = this.readManifest();
         const target = manifest.accounts.find(a => a.id === accountId);
-        if (!target) {
-            throw new Error(`Account not found: ${accountId}`);
-        }
+        if (!target) throw new Error(`Account not found: ${accountId}`);
 
         const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
-        if (!fs.existsSync(tokenFile)) {
-            throw new Error(`Token file missing for account: ${accountId}`);
-        }
+        if (!fs.existsSync(tokenFile)) throw new Error(`Token file missing for account: ${accountId}`);
 
         const tokenData = fs.readFileSync(tokenFile, "utf-8");
 
-        // Write to Keychain
         KeychainHelper.setPassword(tokenData, paths.KEYCHAIN_SERVICE, paths.KEYCHAIN_ACCOUNT);
-
-        // Write to ~/.gemini/jetski-standalone-oauth-token
         fs.writeFileSync(paths.OAUTH_FILE, tokenData, { mode: 0o600 });
 
-        // Update manifest
         manifest.activeAccountId = accountId;
         this.writeManifest(manifest);
 
+        this.restartLanguageServer();
         return { success: true, activeAccountId: accountId };
     }
 }
