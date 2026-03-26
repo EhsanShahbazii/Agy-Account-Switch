@@ -48,24 +48,31 @@ class AccountManager {
 
     restartLanguageServer() {
         try {
-            exec("pkill -f language_server", (err) => {
-                if (err && err.code !== 1) console.error("Language server restart notice:", err.message);
-            });
+            exec("pkill -f language_server", () => {});
         } catch (e) {}
     }
 
     async switchAccount(accountId) {
+        if (!accountId) throw new Error("Account ID is required for switching");
+
         const manifest = this.readManifest();
         const target = manifest.accounts.find(a => a.id === accountId);
-        if (!target) throw new Error(`Account not found: ${accountId}`);
+        if (!target) {
+            const available = manifest.accounts.map(a => a.id).join(", ");
+            throw new Error(`Account "${accountId}" not found. Available accounts: [${available}]`);
+        }
 
         const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
-        if (!fs.existsSync(tokenFile)) throw new Error(`Token file missing for account: ${accountId}`);
+        if (!fs.existsSync(tokenFile)) {
+            throw new Error(`Token file for account "${accountId}" is missing from ${tokenFile}`);
+        }
 
         const tokenData = fs.readFileSync(tokenFile, "utf-8");
 
         KeychainHelper.setPassword(tokenData, paths.KEYCHAIN_SERVICE, paths.KEYCHAIN_ACCOUNT);
-        fs.writeFileSync(paths.OAUTH_FILE, tokenData, { mode: 0o600 });
+        try {
+            fs.writeFileSync(paths.OAUTH_FILE, tokenData, { mode: 0o600 });
+        } catch (e) {}
 
         manifest.activeAccountId = accountId;
         this.writeManifest(manifest);
