@@ -58,13 +58,12 @@ class AccountManager {
         const manifest = this.readManifest();
         const target = manifest.accounts.find(a => a.id === accountId);
         if (!target) {
-            const available = manifest.accounts.map(a => a.id).join(", ");
-            throw new Error(`Account "${accountId}" not found. Available accounts: [${available}]`);
+            throw new Error(`Account "${accountId}" not found.`);
         }
 
         const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
         if (!fs.existsSync(tokenFile)) {
-            throw new Error(`Token file for account "${accountId}" is missing from ${tokenFile}`);
+            throw new Error(`Token file for account "${accountId}" is missing.`);
         }
 
         const tokenData = fs.readFileSync(tokenFile, "utf-8");
@@ -79,6 +78,23 @@ class AccountManager {
 
         this.restartLanguageServer();
         return { success: true, activeAccountId: accountId };
+    }
+
+    async removeAccount(accountId) {
+        const manifest = this.readManifest();
+        if (manifest.activeAccountId === accountId) {
+            throw new Error("Cannot remove the active account. Switch to another account first.");
+        }
+
+        manifest.accounts = manifest.accounts.filter(a => a.id !== accountId);
+        this.writeManifest(manifest);
+
+        const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
+        if (fs.existsSync(tokenFile)) {
+            try { fs.unlinkSync(tokenFile); } catch (e) {}
+        }
+
+        return { success: true, removedId: accountId };
     }
 }
 
