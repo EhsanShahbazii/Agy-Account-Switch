@@ -57,14 +57,10 @@ class AccountManager {
 
         const manifest = this.readManifest();
         const target = manifest.accounts.find(a => a.id === accountId);
-        if (!target) {
-            throw new Error(`Account "${accountId}" not found.`);
-        }
+        if (!target) throw new Error(`Account "${accountId}" not found.`);
 
         const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
-        if (!fs.existsSync(tokenFile)) {
-            throw new Error(`Token file for account "${accountId}" is missing.`);
-        }
+        if (!fs.existsSync(tokenFile)) throw new Error(`Token file for account "${accountId}" is missing.`);
 
         const tokenData = fs.readFileSync(tokenFile, "utf-8");
 
@@ -95,6 +91,18 @@ class AccountManager {
         }
 
         return { success: true, removedId: accountId };
+    }
+
+    async renameAccount(accountId, newLabel) {
+        if (!newLabel || !newLabel.trim()) throw new Error("Account label cannot be empty");
+
+        const manifest = this.readManifest();
+        const acc = manifest.accounts.find(a => a.id === accountId);
+        if (!acc) throw new Error(`Account not found: ${accountId}`);
+
+        acc.label = newLabel.trim();
+        this.writeManifest(manifest);
+        return { success: true, account: acc };
     }
 }
 
