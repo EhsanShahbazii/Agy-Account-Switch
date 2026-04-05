@@ -19,6 +19,14 @@ class Patcher {
         logger.info(`Unpacking ${asarPath} to ${destDir}...`);
         execSync(`npx @electron/asar extract "${asarPath}" "${destDir}"`, { stdio: "inherit" });
     }
+
+    static repackAsar(srcDir, destAsar) {
+        logger.info(`Packing ${srcDir} into ${destAsar}...`);
+        execSync(`npx @electron/asar pack "${srcDir}" "${destAsar}" --unpack "**/node_modules/chrome-devtools-mcp/**"`, {
+            stdio: "inherit"
+        });
+        logger.success("ASAR repacked with unpacked chrome-devtools-mcp preserved.");
+    }
 }
 
 module.exports = Patcher;
