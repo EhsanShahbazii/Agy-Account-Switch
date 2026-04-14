@@ -1,4 +1,6 @@
 "use strict";
+const http = require("http");
+const { shell } = require("electron");
 const AccountManager = require("../core/accountManager");
 
 function registerAccountIpcHandlers(ipcMain) {
@@ -12,8 +14,20 @@ function registerAccountIpcHandlers(ipcMain) {
         return await accountManager.switchAccount(accountId);
     });
 
-    ipcMain.handle("accounts:add", async (_event, label, tokenStr) => {
-        return await accountManager.addAccount(label, tokenStr);
+    ipcMain.handle("accounts:add", async (_event, label) => {
+        return new Promise((resolve, reject) => {
+            const server = http.createServer(async (req, res) => {
+                res.writeHead(200, { "Content-Type": "text/html" });
+                res.end("<h3>Authentication complete. You can close this window.</h3>");
+                server.close();
+                resolve({ success: true });
+            });
+
+            server.listen(51123, "127.0.0.1", () => {
+                const authUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+                if (shell) shell.openExternal(authUrl);
+            });
+        });
     });
 
     ipcMain.handle("accounts:remove", async (_event, accountId) => {
