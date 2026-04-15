@@ -23,8 +23,14 @@ function registerAccountIpcHandlers(ipcMain) {
                 resolve({ success: true });
             });
 
-            server.listen(51123, "127.0.0.1", () => {
-                const authUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+            server.on("error", (err) => {
+                server.close();
+                reject(err);
+            });
+
+            server.listen(0, "127.0.0.1", () => {
+                const port = server.address().port;
+                const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?redirect_uri=http://127.0.0.1:${port}`;
                 if (shell) shell.openExternal(authUrl);
             });
         });
