@@ -5,8 +5,21 @@ function initAccountSwitcherUi() {
 
     let activeDropdown = null;
 
+    function closeDropdown() {
+        if (activeDropdown) {
+            activeDropdown.remove();
+            activeDropdown = null;
+        }
+    }
+
+    document.addEventListener("click", (e) => {
+        if (activeDropdown && !activeDropdown.contains(e.target) && !e.target.closest("#agy-account-switcher-trigger")) {
+            closeDropdown();
+        }
+    });
+
     function renderDropdown(anchorBtn) {
-        if (activeDropdown) { activeDropdown.remove(); activeDropdown = null; return; }
+        if (activeDropdown) { closeDropdown(); return; }
         const dropdown = document.createElement("div");
         dropdown.id = "agy-account-switcher-dropdown";
         dropdown.className = "fixed bg-card text-foreground rounded-xl border border-border shadow-xl min-w-[260px] p-2 z-[999999]";
