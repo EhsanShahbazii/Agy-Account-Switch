@@ -10,22 +10,23 @@ class Patcher {
             logger.info(`Creating clean backup at ${backupPath}...`);
             fs.copyFileSync(asarPath, backupPath);
             logger.success("Backup successfully created.");
-        } else {
-            logger.info(`Backup already exists at ${backupPath}`);
         }
     }
 
     static unpackAsar(asarPath, destDir) {
-        logger.info(`Unpacking ${asarPath} to ${destDir}...`);
         execSync(`npx @electron/asar extract "${asarPath}" "${destDir}"`, { stdio: "inherit" });
     }
 
     static repackAsar(srcDir, destAsar) {
-        logger.info(`Packing ${srcDir} into ${destAsar}...`);
         execSync(`npx @electron/asar pack "${srcDir}" "${destAsar}" --unpack "**/node_modules/chrome-devtools-mcp/**"`, {
             stdio: "inherit"
         });
-        logger.success("ASAR repacked with unpacked chrome-devtools-mcp preserved.");
+    }
+
+    static resignApp(appPath = paths.APP_PATH) {
+        logger.info(`Re-signing ${appPath} with ad-hoc signature...`);
+        execSync(`codesign --force --deep --sign - "${appPath}"`, { stdio: "inherit" });
+        logger.success("App re-signed successfully.");
     }
 }
 
