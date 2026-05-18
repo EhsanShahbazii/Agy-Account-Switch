@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -e
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo -e "${CYAN}==================================================${NC}"
+echo -e "${CYAN}   Antigravity Native Multi-Account Switcher     ${NC}"
+echo -e "${CYAN}==================================================${NC}"
+
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo -e "${RED}[ERROR] This switcher is designed for macOS only.${NC}"
+    exit 1
+fi
+
+APP_PATH="/Applications/Antigravity.app"
+if [ ! -d "$APP_PATH" ]; then
+    echo -e "${RED}[ERROR] Antigravity app was not found at $APP_PATH${NC}"
+    exit 1
+fi
+
+command -v node >/dev/null 2>&1 || { echo -e "${RED}[ERROR] Node.js is required but not installed.${NC}"; exit 1; }
+command -v npx >/dev/null 2>&1 || { echo -e "${RED}[ERROR] npx is required but not installed.${NC}"; exit 1; }
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+echo -e "${YELLOW}Applying patch to Antigravity...${NC}"
+node "$PROJECT_ROOT/src/injector/patcher.js"
+
+echo -e "${GREEN}[SUCCESS] Antigravity Account Switcher successfully installed!${NC}"
+echo -e "${CYAN}Restart Antigravity to see the account switcher in the prompt toolbar.${NC}"
