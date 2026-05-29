@@ -1,109 +1,370 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AccountManager = void 0;
+
 const fs = require("fs");
 const path = require("path");
-const { exec } = require("child_process");
-const paths = require("../utils/paths");
-const KeychainHelper = require("./keychain");
+const os = require("os");
+const { execSync } = require("child_process");
+let BrowserWindow;
+try { BrowserWindow = require("electron").BrowserWindow; } catch (e) {}
+
+const ACCOUNTS_DIR = path.join(os.homedir(), ".gemini", "accounts");
+const MANIFEST_PATH = path.join(ACCOUNTS_DIR, "manifest.json");
+const JETSKI_TOKEN_PATH = path.join(os.homedir(), ".gemini", "jetski-standalone-oauth-token");
+const GOOGLE_ACCOUNTS_PATH = path.join(os.homedir(), ".gemini", "google_accounts.json");
 
 class AccountManager {
     constructor() {
-        this.manifestPath = paths.MANIFEST_PATH;
-        this.accountsDir = paths.ACCOUNTS_DIR;
-        this.initStorage();
+        this.ensureDirectories();
     }
 
-    initStorage() {
-        if (!fs.existsSync(this.accountsDir)) {
-            fs.mkdirSync(this.accountsDir, { recursive: true, mode: 0o700 });
-        }
-        if (!fs.existsSync(this.manifestPath)) {
-            const initial = { activeAccountId: null, accounts: [] };
-            fs.writeFileSync(this.manifestPath, JSON.stringify(initial, null, 2), { mode: 0o600 });
-        }
-    }
-
-    readManifest() {
+    ensureDirectories() {
         try {
-            return JSON.parse(fs.readFileSync(this.manifestPath, "utf-8"));
+            if (!fs.existsSync(ACCOUNTS_DIR)) {
+                fs.mkdirSync(ACCOUNTS_DIR, { recursive: true, mode: 0o700 });
+            }
         } catch (e) {
-            return { activeAccountId: null, accounts: [] };
+            console.error("[AccountManager] Failed to ensure accounts directory:", e);
         }
     }
 
-    writeManifest(data) {
-        fs.writeFileSync(this.manifestPath, JSON.stringify(data, null, 2), { mode: 0o600 });
+    getKeychainToken() {
+        try {
+            const out = execSync("security find-generic-password -s gemini -a antigravity -w", {
+                encoding: "utf-8",
+                stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+            return out || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    setKeychainToken(tokenStr) {
+        try {
+            execSync(`security add-generic-password -U -s gemini -a antigravity -w '${tokenStr.replace(/'/g, "'\\''")}'`, {
+                stdio: "ignore",
+            });
+            return true;
+        } catch (e) {
+            console.error("[AccountManager] Failed to set keychain token:", e);
+            return false;
+        }
+    }
+
+    deleteKeychainToken() {
+        try {
+            execSync("security delete-generic-password -s gemini -a antigravity", {
+                stdio: "ignore",
+            });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    decodeTokenString(tokenStr) {
+        if (!tokenStr) return null;
+        try {
+            let b64 = tokenStr.trim();
+            if (b64.startsWith("go-keyring-base64:")) {
+                b64 = b64.substring("go-keyring-base64:".length);
+            }
+            const jsonStr = Buffer.from(b64, "base64").toString("utf-8");
+            return JSON.parse(jsonStr);
+        } catch (e) {
+            console.error("[AccountManager] Failed to decode token string:", e);
+            return null;
+        }
+    }
+
+    async fetchGoogleUserInfo(accessToken) {
+        if (!accessToken) return null;
+        try {
+            const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                signal: AbortSignal.timeout(4000),
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {
+            // Ignore fetch errors
+        }
+        return null;
+    }
+
+    getManifest() {
+        try {
+            if (fs.existsSync(MANIFEST_PATH)) {
+                const data = fs.readFileSync(MANIFEST_PATH, "utf-8");
+                return JSON.parse(data);
+            }
+        } catch (e) {
+            console.error("[AccountManager] Failed to read manifest:", e);
+        }
+        return {};
+    }
+
+    saveManifest(manifest) {
+        try {
+            this.ensureDirectories();
+            fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2), "utf-8");
+            return true;
+        } catch (e) {
+            console.error("[AccountManager] Failed to write manifest:", e);
+            return false;
+        }
+    }
+
+    async syncCurrentAccount() {
+        const currentKeychain = this.getKeychainToken();
+        if (!currentKeychain) return null;
+
+        const decoded = this.decodeTokenString(currentKeychain);
+        if (!decoded || !decoded.token || !decoded.token.access_token) {
+            return null;
+        }
+
+        const manifest = this.getManifest();
+        const entries = Object.entries(manifest);
+
+        const currentRefresh = decoded?.token?.refresh_token;
+        for (const [id, acc] of entries) {
+            if (acc.token_file && fs.existsSync(acc.token_file)) {
+                try {
+                    const savedToken = fs.readFileSync(acc.token_file, "utf-8").trim();
+                    if (savedToken === currentKeychain) {
+                        return id;
+                    }
+                    const savedDec = this.decodeTokenString(savedToken);
+                    if (currentRefresh && savedDec?.token?.refresh_token === currentRefresh) {
+                        fs.writeFileSync(acc.token_file, currentKeychain, { encoding: "utf-8", mode: 0o600 });
+                        acc.last_used = new Date().toISOString();
+                        this.saveManifest(manifest);
+                        return id;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        const userInfo = await this.fetchGoogleUserInfo(decoded.token.access_token);
+        const email = userInfo?.email || "active-account@gemini.pro";
+        const name = userInfo?.name || email.split("@")[0];
+        const picture = userInfo?.picture || "";
+
+        const safeId = email.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const tokenFile = path.join(ACCOUNTS_DIR, `${safeId}.token`);
+
+        try {
+            fs.writeFileSync(tokenFile, currentKeychain, { encoding: "utf-8", mode: 0o600 });
+        } catch (e) {}
+
+        manifest[safeId] = {
+            id: safeId,
+            label: name,
+            email: email,
+            name: name,
+            picture: picture,
+            token_file: tokenFile,
+            saved_at: new Date().toISOString(),
+            last_used: new Date().toISOString(),
+        };
+
+        this.saveManifest(manifest);
+        return safeId;
     }
 
     async listAccounts() {
-        const manifest = this.readManifest();
-        const activeId = manifest.activeAccountId;
+        const activeId = await this.syncCurrentAccount();
+        const manifest = this.getManifest();
+
+        const accounts = Object.entries(manifest).map(([id, acc]) => {
+            return {
+                id: id,
+                label: acc.label || acc.name || id,
+                email: acc.email || "",
+                name: acc.name || "",
+                picture: acc.picture || "",
+                isActive: id === activeId,
+                lastUsed: acc.last_used || acc.saved_at || "",
+            };
+        });
+
+        accounts.sort((a, b) => {
+            if (a.isActive) return -1;
+            if (b.isActive) return 1;
+            return (b.lastUsed || "").localeCompare(a.lastUsed || "");
+        });
+
         return {
-            activeAccountId: activeId,
-            accounts: manifest.accounts.map(acc => ({
-                ...acc,
-                isActive: acc.id === activeId
-            }))
+            activeId,
+            accounts,
         };
     }
 
-    restartLanguageServer() {
+    async switchAccount(accountId) {
+        const manifest = this.getManifest();
+        const target = manifest[accountId];
+        if (!target) {
+            throw new Error(`Account "${accountId}" not found`);
+        }
+
+        let tokenStr = "";
+        if (target.token_file && fs.existsSync(target.token_file)) {
+            tokenStr = fs.readFileSync(target.token_file, "utf-8").trim();
+        } else if (target.token) {
+            tokenStr = target.token;
+        }
+
+        if (!tokenStr) {
+            throw new Error(`No token available for account "${accountId}"`);
+        }
+
+        this.setKeychainToken(tokenStr);
+
         try {
-            exec("pkill -f language_server", () => {});
+            const decoded = this.decodeTokenString(tokenStr);
+            if (decoded) {
+                fs.writeFileSync(JETSKI_TOKEN_PATH, JSON.stringify(decoded), { encoding: "utf-8", mode: 0o600 });
+            }
+        } catch (e) {
+            console.error("[AccountManager] Failed to write jetski token file:", e);
+        }
+
+        try {
+            if (target.email) {
+                let googleAccs = { active: target.email, old: [] };
+                if (fs.existsSync(GOOGLE_ACCOUNTS_PATH)) {
+                    try {
+                        const existing = JSON.parse(fs.readFileSync(GOOGLE_ACCOUNTS_PATH, "utf-8"));
+                        const olds = new Set(existing.old || []);
+                        if (existing.active && existing.active !== target.email) {
+                            olds.add(existing.active);
+                        }
+                        googleAccs.old = Array.from(olds);
+                    } catch (e) {}
+                }
+                fs.writeFileSync(GOOGLE_ACCOUNTS_PATH, JSON.stringify(googleAccs, null, 2), "utf-8");
+            }
         } catch (e) {}
+
+        target.last_used = new Date().toISOString();
+        this.saveManifest(manifest);
+
+        this.restartLanguageServerAndReload();
+
+        return { success: true, activeId: accountId };
     }
 
-    async switchAccount(accountId) {
-        if (!accountId) throw new Error("Account ID is required for switching");
+    async addAccount(label, tokenStr) {
+        await this.syncCurrentAccount();
 
-        const manifest = this.readManifest();
-        const target = manifest.accounts.find(a => a.id === accountId);
-        if (!target) throw new Error(`Account "${accountId}" not found.`);
+        if (tokenStr && tokenStr.trim()) {
+            const trimmed = tokenStr.trim();
+            const decoded = this.decodeTokenString(trimmed);
+            const userInfo = decoded?.token?.access_token
+                ? await this.fetchGoogleUserInfo(decoded.token.access_token)
+                : null;
 
-        const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
-        if (!fs.existsSync(tokenFile)) throw new Error(`Token file for account "${accountId}" is missing.`);
+            const email = userInfo?.email || `${label.toLowerCase().replace(/\s+/g, "")}@gemini.pro`;
+            const name = userInfo?.name || label;
+            const picture = userInfo?.picture || "";
 
-        const tokenData = fs.readFileSync(tokenFile, "utf-8");
+            const safeId = `${label.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}`;
+            const tokenFile = path.join(ACCOUNTS_DIR, `${safeId}.token`);
 
-        KeychainHelper.setPassword(tokenData, paths.KEYCHAIN_SERVICE, paths.KEYCHAIN_ACCOUNT);
-        try {
-            fs.writeFileSync(paths.OAUTH_FILE, tokenData, { mode: 0o600 });
-        } catch (e) {}
+            fs.writeFileSync(tokenFile, trimmed, { encoding: "utf-8", mode: 0o600 });
 
-        manifest.activeAccountId = accountId;
-        this.writeManifest(manifest);
+            const manifest = this.getManifest();
+            manifest[safeId] = {
+                id: safeId,
+                label: label || name,
+                email: email,
+                name: name,
+                picture: picture,
+                token_file: tokenFile,
+                saved_at: new Date().toISOString(),
+                last_used: new Date().toISOString(),
+            };
+            this.saveManifest(manifest);
 
-        this.restartLanguageServer();
-        return { success: true, activeAccountId: accountId };
+            await this.switchAccount(safeId);
+            return { success: true, accountId: safeId };
+        } else {
+            this.deleteKeychainToken();
+            try {
+                if (fs.existsSync(JETSKI_TOKEN_PATH)) {
+                    fs.unlinkSync(JETSKI_TOKEN_PATH);
+                }
+            } catch (e) {}
+
+            this.restartLanguageServerAndReload();
+            return { success: true, loginRequired: true };
+        }
+    }
+
+    
+    async renameAccount(accountId, newLabel) {
+        if (!newLabel || !newLabel.trim()) {
+            return { success: false, error: "Account name cannot be empty" };
+        }
+        const manifest = this.getManifest();
+        const target = manifest[accountId];
+        if (!target) {
+            return { success: false, error: "Account not found" };
+        }
+
+        target.label = newLabel.trim();
+        target.name = newLabel.trim();
+        this.saveManifest(manifest);
+        return { success: true, newLabel: target.label };
     }
 
     async removeAccount(accountId) {
-        const manifest = this.readManifest();
-        if (manifest.activeAccountId === accountId) {
-            throw new Error("Cannot remove the active account. Switch to another account first.");
+        const manifest = this.getManifest();
+        const target = manifest[accountId];
+        if (!target) {
+            return { success: false, error: "Account not found" };
         }
 
-        manifest.accounts = manifest.accounts.filter(a => a.id !== accountId);
-        this.writeManifest(manifest);
-
-        const tokenFile = path.join(this.accountsDir, `${accountId}.token`);
-        if (fs.existsSync(tokenFile)) {
-            try { fs.unlinkSync(tokenFile); } catch (e) {}
+        const currentActive = this.getKeychainToken();
+        if (target.token_file && fs.existsSync(target.token_file)) {
+            try {
+                const saved = fs.readFileSync(target.token_file, "utf-8").trim();
+                if (saved === currentActive) {
+                    return { success: false, error: "Cannot remove the currently active account. Switch to another account first." };
+                }
+                fs.unlinkSync(target.token_file);
+            } catch (e) {}
         }
 
-        return { success: true, removedId: accountId };
+        delete manifest[accountId];
+        this.saveManifest(manifest);
+        return { success: true };
     }
 
-    async renameAccount(accountId, newLabel) {
-        if (!newLabel || !newLabel.trim()) throw new Error("Account label cannot be empty");
+    restartLanguageServerAndReload() {
+        try {
+            const { getLsProcess } = require("./languageServer");
+            const proc = getLsProcess();
+            if (proc && !proc.killed) {
+                proc.kill("SIGTERM");
+            }
+        } catch (e) {
+            console.error("[AccountManager] Failed to terminate LS process:", e);
+        }
 
-        const manifest = this.readManifest();
-        const acc = manifest.accounts.find(a => a.id === accountId);
-        if (!acc) throw new Error(`Account not found: ${accountId}`);
-
-        acc.label = newLabel.trim();
-        this.writeManifest(manifest);
-        return { success: true, account: acc };
+        setTimeout(() => {
+            const wins = BrowserWindow.getAllWindows();
+            for (const win of wins) {
+                if (!win.isDestroyed()) {
+                    win.webContents.reload();
+                }
+            }
+        }, 800);
     }
 }
 
-module.exports = AccountManager;
+exports.AccountManager = AccountManager;
