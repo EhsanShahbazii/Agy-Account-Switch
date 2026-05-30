@@ -79,3 +79,13 @@ To restore Antigravity back to its pristine factory state:
 ## 📄 License
 
 MIT © [Ehsan Shahbazi](https://github.com/EhsanShahbazii)
+
+---
+
+## ❓ FAQ & Troubleshooting
+
+### Q: Does this require disabling SIP or disabling Gatekeeper?
+**A:** No. The patch modifies `app.asar` and applies a valid ad-hoc local code signature (`codesign --force --deep --sign -`), ensuring macOS allows it to execute without security warnings.
+
+### Q: What happens if Antigravity updates?
+**A:** When Antigravity updates, its new `app.asar` will replace the patched version. Simply re-run `./scripts/install.sh` to reapply the switcher in seconds.
