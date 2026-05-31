@@ -1,17 +1,29 @@
 {
   "name": "agy-account-switch",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "description": "Seamless multi-account switcher injected natively into Google Antigravity desktop app for macOS",
-  "main": "src/index.js",
+  "main": "src/core/accountManager.js",
   "bin": {
     "agy-switch": "./bin/agy-switch.js"
   },
   "scripts": {
     "test": "node --test tests/*.test.js",
     "install:patch": "node src/injector/patcher.js",
-    "uninstall:patch": "node src/injector/unpatcher.js"
+    "uninstall:patch": "node src/injector/unpatcher.js",
+    "doctor": "bash scripts/doctor.sh"
   },
-  "keywords": ["antigravity", "gemini", "account-switcher", "multi-account", "macos"],
+  "keywords": [
+    "antigravity",
+    "gemini",
+    "gemini-pro",
+    "account-switcher",
+    "multi-account",
+    "electron",
+    "macos"
+  ],
   "author": "EhsanShahbazii <ehsan.shahbazipc@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@electron/asar": "^3.2.14"
+  }
 }
