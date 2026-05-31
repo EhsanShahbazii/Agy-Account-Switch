@@ -1,3 +1,5 @@
+<div dir="rtl">
+
 # سوییچر چنداکانته برنامه آنتی‌گرویتی (Antigravity Multi-Account Switcher)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -219,3 +221,6 @@ node bin/agy-switch.js switch <accountId>
 
 نویسنده: **[احسان شهبازی (Ehsan Shahbazi)](https://github.com/EhsanShahbazii)**  
 گیت‌هاب: [@EhsanShahbazii](https://github.com/EhsanShahbazii)
+
+
+</div>
