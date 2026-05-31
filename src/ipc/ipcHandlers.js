@@ -1,6 +1,11 @@
 "use strict";
 const http = require("http");
-const { shell } = require("electron");
+let shell;
+try {
+    shell = require("electron").shell;
+} catch (e) {
+    shell = null;
+}
 const AccountManager = require("../core/accountManager");
 
 function registerAccountIpcHandlers(ipcMain) {

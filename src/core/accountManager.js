@@ -15,14 +15,25 @@ const JETSKI_TOKEN_PATH = path.join(os.homedir(), ".gemini", "jetski-standalone-
 const GOOGLE_ACCOUNTS_PATH = path.join(os.homedir(), ".gemini", "google_accounts.json");
 
 class AccountManager {
-    constructor() {
+    constructor(options = {}) {
+        this.accountsDir = options.accountsDir || ACCOUNTS_DIR;
+        this.manifestPath = options.manifestPath || path.join(this.accountsDir, "manifest.json");
+        this.jetskiTokenPath = options.jetskiTokenPath || JETSKI_TOKEN_PATH;
+        this.googleAccountsPath = options.googleAccountsPath || GOOGLE_ACCOUNTS_PATH;
         this.ensureDirectories();
+    }
+
+    initStorage() {
+        this.ensureDirectories();
+        if (!fs.existsSync(this.manifestPath)) {
+            this.writeManifest({ activeAccountId: null, accounts: [] });
+        }
     }
 
     ensureDirectories() {
         try {
-            if (!fs.existsSync(ACCOUNTS_DIR)) {
-                fs.mkdirSync(ACCOUNTS_DIR, { recursive: true, mode: 0o700 });
+            if (!fs.existsSync(this.accountsDir)) {
+                fs.mkdirSync(this.accountsDir, { recursive: true, mode: 0o700 });
             }
         } catch (e) {
             console.error("[AccountManager] Failed to ensure accounts directory:", e);
@@ -97,8 +108,8 @@ class AccountManager {
 
     getManifest() {
         try {
-            if (fs.existsSync(MANIFEST_PATH)) {
-                const data = fs.readFileSync(MANIFEST_PATH, "utf-8");
+            if (fs.existsSync(this.manifestPath)) {
+                const data = fs.readFileSync(this.manifestPath, "utf-8");
                 return JSON.parse(data);
             }
         } catch (e) {
@@ -110,7 +121,7 @@ class AccountManager {
     saveManifest(manifest) {
         try {
             this.ensureDirectories();
-            fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2), "utf-8");
+            fs.writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
             return true;
         } catch (e) {
             console.error("[AccountManager] Failed to write manifest:", e);
@@ -155,7 +166,7 @@ class AccountManager {
         const picture = userInfo?.picture || "";
 
         const safeId = email.replace(/[^a-zA-Z0-9_-]/g, "_");
-        const tokenFile = path.join(ACCOUNTS_DIR, `${safeId}.token`);
+        const tokenFile = path.join(this.accountsDir, `${safeId}.token`);
 
         try {
             fs.writeFileSync(tokenFile, currentKeychain, { encoding: "utf-8", mode: 0o600 });
@@ -273,7 +284,7 @@ class AccountManager {
             const picture = userInfo?.picture || "";
 
             const safeId = `${label.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}`;
-            const tokenFile = path.join(ACCOUNTS_DIR, `${safeId}.token`);
+            const tokenFile = path.join(this.accountsDir, `${safeId}.token`);
 
             fs.writeFileSync(tokenFile, trimmed, { encoding: "utf-8", mode: 0o600 });
 
@@ -368,3 +379,6 @@ class AccountManager {
 }
 
 exports.AccountManager = AccountManager;
+
+module.exports = AccountManager;
+module.exports.AccountManager = AccountManager;

@@ -7,6 +7,16 @@ const paths = require("../utils/paths");
 const logger = require("../utils/logger");
 
 class Patcher {
+    static backupAsar(asarPath = paths.ASAR_PATH, backupPath = paths.ASAR_BACKUP_PATH) {
+        if (!fs.existsSync(backupPath)) {
+            logger.info(`Creating clean backup at ${backupPath}...`);
+            fs.copyFileSync(asarPath, backupPath);
+            logger.success(`Backup saved to ${backupPath}`);
+        } else {
+            logger.info("Existing backup preserved.");
+        }
+    }
+
     static run() {
         logger.step(1, 5, "Verifying paths and prerequisites...");
         if (!fs.existsSync(paths.APP_PATH)) {
