@@ -23,4 +23,13 @@ class Unpatcher {
     }
 }
 
+if (require.main === module) {
+    try {
+        Unpatcher.restore();
+    } catch (err) {
+        logger.error(err.message);
+        process.exit(1);
+    }
+}
+
 module.exports = Unpatcher;

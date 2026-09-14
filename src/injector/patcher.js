@@ -54,10 +54,14 @@ class Patcher {
 
         logger.step(4, 5, "Injecting Account Switcher components...");
 
-        // Copy accountManager
+        // Copy accountManager to both dist/ and dist/core/ to ensure all require paths resolve
         const managerSrc = path.join(__dirname, "../core/accountManager.js");
         const managerDest = path.join(tempExtractDir, "dist/accountManager.js");
         fs.copyFileSync(managerSrc, managerDest);
+
+        const coreDir = path.join(tempExtractDir, "dist/core");
+        if (!fs.existsSync(coreDir)) fs.mkdirSync(coreDir, { recursive: true });
+        fs.copyFileSync(managerSrc, path.join(coreDir, "accountManager.js"));
 
         // Copy ipcHandlers
         const ipcSrc = path.join(__dirname, "../ipc/ipcHandlers.js");
@@ -68,7 +72,7 @@ class Patcher {
         const mainJsPath = path.join(tempExtractDir, "dist/main.js");
         let mainContent = fs.readFileSync(mainJsPath, "utf-8");
         if (!mainContent.includes("accountIpcHandlers")) {
-            mainContent += `\n\ntry { require("./accountIpcHandlers").registerAccountIpcHandlers(electron_1.ipcMain); } catch (e) { console.error("[AccountSwitcher] IPC registration failed:", e); }\n`;
+            mainContent += `\n\ntry { const { registerAccountIpcHandlers } = require("./accountIpcHandlers"); registerAccountIpcHandlers(electron_1.ipcMain); } catch (e) { console.error("[AccountSwitcher] IPC registration failed:", e); }\n`;
             fs.writeFileSync(mainJsPath, mainContent, "utf-8");
         }
 
@@ -91,8 +95,16 @@ class Patcher {
 
         // Atomic replacement via temporary file to avoid partial writes or EPERM
         const tempDest = paths.ASAR_PATH + ".tmp." + Date.now();
-        fs.copyFileSync(newAsar, tempDest);
-        fs.renameSync(tempDest, paths.ASAR_PATH);
+        try {
+            fs.copyFileSync(newAsar, tempDest);
+            fs.renameSync(tempDest, paths.ASAR_PATH);
+        } catch (copyErr) {
+            try {
+                execSync(`cp "${newAsar}" "${tempDest}" && mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "pipe" });
+            } catch (shellErr) {
+                throw new Error(`Failed to copy patched app.asar: ${copyErr.message}`);
+            }
+        }
 
         const newUnpacked = newAsar + ".unpacked";
         const destUnpacked = paths.ASAR_PATH + ".unpacked";

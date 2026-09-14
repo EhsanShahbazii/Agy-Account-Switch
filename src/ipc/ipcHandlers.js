@@ -6,7 +6,19 @@ try {
 } catch (e) {
     shell = null;
 }
-const AccountManager = require("../core/accountManager");
+let AccountManager;
+try {
+    AccountManager = require("./accountManager");
+} catch (e) {
+    try {
+        AccountManager = require("../core/accountManager");
+    } catch (err) {
+        AccountManager = require("./core/accountManager");
+    }
+}
+if (AccountManager && AccountManager.AccountManager) {
+    AccountManager = AccountManager.AccountManager;
+}
 
 function registerAccountIpcHandlers(ipcMain) {
     const accountManager = new AccountManager();

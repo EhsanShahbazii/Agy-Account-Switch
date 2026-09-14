@@ -29,9 +29,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 
-# Remove quarantine / Gatekeeper flags
+# Remove quarantine / Gatekeeper flags and ensure write permissions
 echo -e "${YELLOW}Clearing macOS quarantine and attributes...${NC}"
 xattr -cr "$APP_PATH" 2>/dev/null || true
+chmod -R u+w "$APP_PATH" 2>/dev/null || true
 
 if pgrep -f "Antigravity" >/dev/null 2>&1; then
     echo -e "${CYAN}[INFO] Antigravity is currently open. Applying patch in-place...${NC}"
