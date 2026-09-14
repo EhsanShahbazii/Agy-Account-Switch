@@ -12,8 +12,20 @@ class Unpatcher {
         logger.info(`Restoring original app.asar from ${backupPath}...`);
 
         const tmpDest = asarPath + ".tmp." + Date.now();
-        fs.copyFileSync(backupPath, tmpDest);
-        fs.renameSync(tmpDest, asarPath);
+        try {
+            fs.copyFileSync(backupPath, tmpDest);
+        } catch (e) {
+            try {
+                fs.writeFileSync(tmpDest, fs.readFileSync(backupPath));
+            } catch (e2) {
+                execSync(`cp -f "${backupPath}" "${tmpDest}"`, { stdio: "pipe" });
+            }
+        }
+        try {
+            fs.renameSync(tmpDest, asarPath);
+        } catch (renameErr) {
+            execSync(`mv -f "${tmpDest}" "${asarPath}"`, { stdio: "pipe" });
+        }
 
         try {
             execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });

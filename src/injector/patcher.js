@@ -6,6 +6,18 @@ const { execSync } = require("child_process");
 const paths = require("../utils/paths");
 const logger = require("../utils/logger");
 
+function safeCopy(src, dest) {
+    try {
+        fs.copyFileSync(src, dest);
+    } catch (err) {
+        try {
+            fs.writeFileSync(dest, fs.readFileSync(src));
+        } catch (e2) {
+            execSync(`cp -f "${src}" "${dest}"`, { stdio: "pipe" });
+        }
+    }
+}
+
 class Patcher {
     static backupAsar(asarPath = paths.ASAR_PATH, backupPath = paths.ASAR_BACKUP_PATH) {
         try {
@@ -14,7 +26,7 @@ class Patcher {
 
         if (!fs.existsSync(backupPath) || fs.statSync(backupPath).size === 0) {
             logger.info(`Creating clean backup at ${backupPath}...`);
-            fs.copyFileSync(asarPath, backupPath);
+            safeCopy(asarPath, backupPath);
             logger.success(`Backup saved to ${backupPath}`);
         } else {
             logger.info("Existing backup preserved.");
@@ -95,15 +107,11 @@ class Patcher {
 
         // Atomic replacement via temporary file to avoid partial writes or EPERM
         const tempDest = paths.ASAR_PATH + ".tmp." + Date.now();
+        safeCopy(newAsar, tempDest);
         try {
-            fs.copyFileSync(newAsar, tempDest);
             fs.renameSync(tempDest, paths.ASAR_PATH);
-        } catch (copyErr) {
-            try {
-                execSync(`cp "${newAsar}" "${tempDest}" && mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "pipe" });
-            } catch (shellErr) {
-                throw new Error(`Failed to copy patched app.asar: ${copyErr.message}`);
-            }
+        } catch (renameErr) {
+            execSync(`mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "pipe" });
         }
 
         const newUnpacked = newAsar + ".unpacked";
