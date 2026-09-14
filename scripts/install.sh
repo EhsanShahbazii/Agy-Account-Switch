@@ -31,6 +31,7 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Remove quarantine / Gatekeeper flags and ensure write permissions
 echo -e "${YELLOW}Clearing macOS quarantine and attributes...${NC}"
+xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
 xattr -cr "$APP_PATH" 2>/dev/null || true
 chmod -R u+w "$APP_PATH" 2>/dev/null || true
 
@@ -40,6 +41,7 @@ fi
 
 echo -e "${YELLOW}Applying patch to Antigravity...${NC}"
 node "$PROJECT_ROOT/src/injector/patcher.js"
+xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
 xattr -cr "$APP_PATH" 2>/dev/null || true
 
 echo -e "${GREEN}[SUCCESS] Antigravity Account Switcher successfully installed!${NC}"

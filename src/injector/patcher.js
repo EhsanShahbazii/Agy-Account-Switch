@@ -124,13 +124,12 @@ class Patcher {
             fs.rmSync(newUnpacked, { recursive: true, force: true });
         }
 
-        // Re-sign only outer app bundle preserving entitlements and runtime flags (NO --deep to preserve Helper JIT)
+        // Clear Gatekeeper quarantine and provenance flags so macOS allows running without warnings.
+        // NOTE: We do NOT re-sign with ad-hoc ('--sign -') because ad-hoc signing strips Google's
+        // Team ID (EQHXZ8M8AV), which causes macOS DYLD to crash on launch with:
+        // "mapping process and mapped file have different Team IDs"
         try {
-            execSync(`codesign --force --sign - --preserve-metadata=identifier,entitlements,flags,runtime "${paths.APP_PATH}"`, { stdio: "ignore" });
-        } catch (e) {}
-
-        // Remove Gatekeeper quarantine and provenance flags
-        try {
+            execSync(`xattr -dr com.apple.quarantine "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });
             execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });
         } catch (e) {}
 
