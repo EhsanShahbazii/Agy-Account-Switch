@@ -15,6 +15,21 @@ class Patcher {
         } else {
             logger.info("Existing backup preserved.");
         }
+        Patcher.ensureUnpackedBackup(asarPath, backupPath);
+    }
+
+    static ensureUnpackedBackup(asarPath = paths.ASAR_PATH, backupPath = paths.ASAR_BACKUP_PATH) {
+        const unpackedDir = asarPath + ".unpacked";
+        const backupUnpackedDir = backupPath + ".unpacked";
+        if (fs.existsSync(unpackedDir) && !fs.existsSync(backupUnpackedDir)) {
+            try {
+                fs.symlinkSync(path.basename(unpackedDir), backupUnpackedDir);
+            } catch (e) {
+                try {
+                    fs.cpSync(unpackedDir, backupUnpackedDir, { recursive: true });
+                } catch (err) {}
+            }
+        }
     }
 
     static run() {
@@ -34,6 +49,7 @@ class Patcher {
             logger.info("Existing backup preserved.");
         }
 
+        Patcher.ensureUnpackedBackup(paths.ASAR_PATH, paths.ASAR_BACKUP_PATH);
         const tempExtractDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-patch-"));
         logger.step(3, 5, `Extracting ASAR to temporary workspace...`);
         execSync(`npx @electron/asar extract "${paths.ASAR_BACKUP_PATH}" "${tempExtractDir}"`, { stdio: "pipe" });
@@ -76,6 +92,15 @@ class Patcher {
         });
 
         fs.copyFileSync(newAsar, paths.ASAR_PATH);
+        const newUnpacked = newAsar + ".unpacked";
+        const destUnpacked = paths.ASAR_PATH + ".unpacked";
+        if (fs.existsSync(newUnpacked)) {
+            if (!fs.existsSync(destUnpacked)) {
+                fs.mkdirSync(destUnpacked, { recursive: true });
+            }
+            fs.cpSync(newUnpacked, destUnpacked, { recursive: true });
+            fs.rmSync(newUnpacked, { recursive: true, force: true });
+        }
         execSync(`codesign --force --deep --sign - "${paths.APP_PATH}"`, { stdio: "pipe" });
 
         // Clean up
