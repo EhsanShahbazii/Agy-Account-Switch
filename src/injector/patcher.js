@@ -116,6 +116,11 @@ class Patcher {
             fs.rmSync(newUnpacked, { recursive: true, force: true });
         }
 
+        // Re-sign only outer app bundle preserving entitlements and runtime flags (NO --deep to preserve Helper JIT)
+        try {
+            execSync(`codesign --force --sign - --preserve-metadata=identifier,entitlements,flags,runtime "${paths.APP_PATH}"`, { stdio: "ignore" });
+        } catch (e) {}
+
         // Remove Gatekeeper quarantine and provenance flags
         try {
             execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });

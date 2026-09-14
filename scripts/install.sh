@@ -40,6 +40,7 @@ fi
 
 echo -e "${YELLOW}Applying patch to Antigravity...${NC}"
 node "$PROJECT_ROOT/src/injector/patcher.js"
+xattr -cr "$APP_PATH" 2>/dev/null || true
 
 echo -e "${GREEN}[SUCCESS] Antigravity Account Switcher successfully installed!${NC}"
 if pgrep -f "Antigravity" >/dev/null 2>&1; then

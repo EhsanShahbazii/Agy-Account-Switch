@@ -215,6 +215,83 @@ class AccountManager {
         };
     }
 
+    async addNewAccountFromToken(customLabel, tokenData) {
+        const accessToken = tokenData.access_token;
+        let email = "";
+        let name = "";
+        let picture = "";
+
+        if (tokenData.id_token) {
+            try {
+                const parts = tokenData.id_token.split(".");
+                if (parts.length >= 2) {
+                    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+                    email = payload.email || "";
+                    name = payload.name || "";
+                    picture = payload.picture || "";
+                }
+            } catch (e) {}
+        }
+
+        if (!email && accessToken) {
+            const userInfo = await this.fetchGoogleUserInfo(accessToken);
+            if (userInfo) {
+                email = userInfo.email || "";
+                name = userInfo.name || "";
+                picture = userInfo.picture || "";
+            }
+        }
+
+        const safeEmail = email || `account_${Date.now()}@gemini.pro`;
+        const label = customLabel || name || safeEmail.split("@")[0];
+        const safeId = safeEmail.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const tokenFile = path.join(this.accountsDir, `${safeId}.token`);
+
+        const formattedToken = {
+            token: {
+                access_token: tokenData.access_token || "",
+                token_type: tokenData.token_type || "Bearer",
+                refresh_token: tokenData.refresh_token || "",
+                expiry: tokenData.expires_in
+                    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+                    : new Date(Date.now() + 3600 * 1000).toISOString()
+            },
+            auth_method: "consumer",
+            id_token: tokenData.id_token || ""
+        };
+
+        const jsonStr = JSON.stringify(formattedToken);
+        fs.writeFileSync(tokenFile, jsonStr, { encoding: "utf-8", mode: 0o600 });
+
+        const manifest = this.getManifest();
+        manifest[safeId] = {
+            id: safeId,
+            label: label,
+            email: safeEmail,
+            name: name || label,
+            picture: picture,
+            token_file: tokenFile,
+            saved_at: new Date().toISOString(),
+            last_used: new Date().toISOString()
+        };
+        this.saveManifest(manifest);
+
+        try {
+            await this.switchAccount(safeId);
+        } catch (e) {
+            console.error("[AccountManager] Auto-switch to new account failed:", e);
+        }
+
+        return {
+            id: safeId,
+            label,
+            email: safeEmail,
+            name,
+            picture,
+            isActive: true
+        };
+    }
+
     async switchAccount(accountId) {
         const manifest = this.getManifest();
         const target = manifest[accountId];
