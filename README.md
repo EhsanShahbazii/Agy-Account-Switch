@@ -118,7 +118,7 @@ Antigravity stores its primary authentication state in two places:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │              Google Antigravity UI                      │
-│   [Model: Gemini 3.8 Flash]  [Account: Ehsan Shahbazi ▾] │
+│  [Model: Gemini 3.8 Flash]  [Account: Ehsan Shahbazi ▾] │
 └──────────────────────────┬──────────────────────────────┘
                            │ IPC invoke ('accounts:switch')
                            ▼
