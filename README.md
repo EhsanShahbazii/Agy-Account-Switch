@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="screenshots/banner.png" alt="Antigravity Account Switcher Banner" width="100%" />
+</p>
+
 # Antigravity Multi-Account Switcher
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

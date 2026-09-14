@@ -1,5 +1,11 @@
 <div dir="rtl">
 
+<p align="center">
+  <img src="screenshots/banner.png" alt="بنر سوییچر اکانت آنتی‌گرویتی" width="100%" />
+</p>
+
+
+
 # سوییچر چنداکانته برنامه آنتی‌گرویتی (Antigravity Multi-Account Switcher)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
