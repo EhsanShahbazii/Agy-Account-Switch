@@ -57,7 +57,7 @@ function resolveOAuthCredentials() {
             try {
                 const buf = fs.readFileSync(binPath);
                 const text = buf.toString("latin1");
-                const idPattern = new RegExp("[0-9]{12}-[a-z0-9_]+\\.apps\\.googleusercontent\\.com");
+                const idPattern = /[0-9]+-[a-z0-9_]*tmhssin[a-z0-9_]*\.apps\.googleusercontent\.com/;
                 const secretPattern = new RegExp(["G", "O", "C", "S", "P", "X", "-"].join("") + "[a-zA-Z0-9_-]{28}");
                 const idMatch = text.match(idPattern);
                 const secretMatch = text.match(secretPattern);
