@@ -28,8 +28,32 @@ command -v npx >/dev/null 2>&1 || { echo -e "${RED}[ERROR] npx is required but n
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
+
+# Remove quarantine / Gatekeeper flags
+echo -e "${YELLOW}Clearing macOS quarantine and attributes...${NC}"
+xattr -cr "$APP_PATH" 2>/dev/null || true
+
+if pgrep -f "Antigravity" >/dev/null 2>&1; then
+    echo -e "${CYAN}[INFO] Antigravity is currently open. Applying patch in-place...${NC}"
+fi
+
 echo -e "${YELLOW}Applying patch to Antigravity...${NC}"
 node "$PROJECT_ROOT/src/injector/patcher.js"
 
 echo -e "${GREEN}[SUCCESS] Antigravity Account Switcher successfully installed!${NC}"
-echo -e "${CYAN}Restart Antigravity to see the account switcher in the prompt toolbar.${NC}"
+if pgrep -f "Antigravity" >/dev/null 2>&1; then
+    echo -e "${CYAN}--------------------------------------------------${NC}"
+    echo -e "${YELLOW}Please restart Antigravity (Cmd+Q and re-open) to activate the Account Switcher!${NC}"
+    echo -e "${CYAN}--------------------------------------------------${NC}"
+else
+    if [ -t 0 ]; then
+        read -p "Would you like to launch Antigravity now? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            open -a Antigravity
+        fi
+    else
+        echo -e "${CYAN}Launch Antigravity to see the account switcher in the prompt toolbar.${NC}"
+    fi
+fi
+

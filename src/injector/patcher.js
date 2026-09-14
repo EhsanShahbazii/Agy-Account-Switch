@@ -8,7 +8,11 @@ const logger = require("../utils/logger");
 
 class Patcher {
     static backupAsar(asarPath = paths.ASAR_PATH, backupPath = paths.ASAR_BACKUP_PATH) {
-        if (!fs.existsSync(backupPath)) {
+        try {
+            execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });
+        } catch (e) {}
+
+        if (!fs.existsSync(backupPath) || fs.statSync(backupPath).size === 0) {
             logger.info(`Creating clean backup at ${backupPath}...`);
             fs.copyFileSync(asarPath, backupPath);
             logger.success(`Backup saved to ${backupPath}`);
@@ -42,14 +46,8 @@ class Patcher {
         }
 
         logger.step(2, 5, "Creating backup of app.asar...");
-        if (!fs.existsSync(paths.ASAR_BACKUP_PATH)) {
-            fs.copyFileSync(paths.ASAR_PATH, paths.ASAR_BACKUP_PATH);
-            logger.success(`Backup saved to ${paths.ASAR_BACKUP_PATH}`);
-        } else {
-            logger.info("Existing backup preserved.");
-        }
+        Patcher.backupAsar(paths.ASAR_PATH, paths.ASAR_BACKUP_PATH);
 
-        Patcher.ensureUnpackedBackup(paths.ASAR_PATH, paths.ASAR_BACKUP_PATH);
         const tempExtractDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-patch-"));
         logger.step(3, 5, `Extracting ASAR to temporary workspace...`);
         execSync(`npx @electron/asar extract "${paths.ASAR_BACKUP_PATH}" "${tempExtractDir}"`, { stdio: "pipe" });
@@ -85,13 +83,17 @@ class Patcher {
             fs.writeFileSync(preloadPath, preloadContent, "utf-8");
         }
 
-        logger.step(5, 5, "Repacking ASAR and re-signing app...");
+        logger.step(5, 5, "Repacking ASAR and applying patch...");
         const newAsar = path.join(os.tmpdir(), "app_patched.asar");
         execSync(`npx @electron/asar pack "${tempExtractDir}" "${newAsar}" --unpack "**/node_modules/chrome-devtools-mcp/**"`, {
             stdio: "pipe"
         });
 
-        fs.copyFileSync(newAsar, paths.ASAR_PATH);
+        // Atomic replacement via temporary file to avoid partial writes or EPERM
+        const tempDest = paths.ASAR_PATH + ".tmp." + Date.now();
+        fs.copyFileSync(newAsar, tempDest);
+        fs.renameSync(tempDest, paths.ASAR_PATH);
+
         const newUnpacked = newAsar + ".unpacked";
         const destUnpacked = paths.ASAR_PATH + ".unpacked";
         if (fs.existsSync(newUnpacked)) {
@@ -101,13 +103,17 @@ class Patcher {
             fs.cpSync(newUnpacked, destUnpacked, { recursive: true });
             fs.rmSync(newUnpacked, { recursive: true, force: true });
         }
-        execSync(`codesign --force --deep --sign - "${paths.APP_PATH}"`, { stdio: "pipe" });
+
+        // Remove Gatekeeper quarantine and provenance flags
+        try {
+            execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });
+        } catch (e) {}
 
         // Clean up
         fs.rmSync(tempExtractDir, { recursive: true, force: true });
         if (fs.existsSync(newAsar)) fs.unlinkSync(newAsar);
 
-        logger.success("Patching and code signing completed successfully!");
+        logger.success("Patch applied successfully!");
     }
 }
 

@@ -10,9 +10,15 @@ class Unpatcher {
             throw new Error(`Backup file not found at ${backupPath}`);
         }
         logger.info(`Restoring original app.asar from ${backupPath}...`);
-        fs.copyFileSync(backupPath, asarPath);
-        logger.info("Re-signing restored application...");
-        execSync(`codesign --force --deep --sign - "${paths.APP_PATH}"`, { stdio: "inherit" });
+
+        const tmpDest = asarPath + ".tmp." + Date.now();
+        fs.copyFileSync(backupPath, tmpDest);
+        fs.renameSync(tmpDest, asarPath);
+
+        try {
+            execSync(`xattr -cr "${paths.APP_PATH}" 2>/dev/null || true`, { stdio: "ignore" });
+        } catch (e) {}
+
         logger.success("Original Antigravity application restored successfully!");
     }
 }

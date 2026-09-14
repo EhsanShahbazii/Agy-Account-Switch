@@ -14,3 +14,8 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 node "$PROJECT_ROOT/src/injector/unpatcher.js"
 
 echo -e "${GREEN}[SUCCESS] Antigravity successfully restored to original state.${NC}"
+if pgrep -f "Antigravity" >/dev/null 2>&1; then
+    echo -e "${CYAN}--------------------------------------------------${NC}"
+    echo -e "${YELLOW}Please restart Antigravity (Cmd+Q and re-open) to finalize restoration.${NC}"
+    echo -e "${CYAN}--------------------------------------------------${NC}"
+fi
