@@ -29,6 +29,18 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 
+# Verify write permissions to Antigravity.app and fix if needed
+RESOURCES_DIR="$APP_PATH/Contents/Resources"
+if ! touch "$RESOURCES_DIR/.write_test" 2>/dev/null; then
+    echo -e "${YELLOW}[NOTICE] Write permission required for $APP_PATH.${NC}"
+    echo -e "${YELLOW}Please enter your macOS administrator password if prompted:${NC}"
+    sudo chflags -R nouchg "$APP_PATH" 2>/dev/null || true
+    sudo chown -R "$(whoami)" "$APP_PATH"
+    sudo chmod -R u+w "$APP_PATH"
+else
+    rm -f "$RESOURCES_DIR/.write_test"
+fi
+
 # Remove quarantine / Gatekeeper flags and ensure write permissions
 echo -e "${YELLOW}Clearing macOS quarantine and attributes...${NC}"
 xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true

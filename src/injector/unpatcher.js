@@ -12,19 +12,38 @@ class Unpatcher {
         logger.info(`Restoring original app.asar from ${backupPath}...`);
 
         const tmpDest = asarPath + ".tmp." + Date.now();
+        let copied = false;
         try {
             fs.copyFileSync(backupPath, tmpDest);
-        } catch (e) {
+            copied = true;
+        } catch (e) {}
+        if (!copied) {
             try {
                 fs.writeFileSync(tmpDest, fs.readFileSync(backupPath));
-            } catch (e2) {
+                copied = true;
+            } catch (e2) {}
+        }
+        if (!copied) {
+            try {
                 execSync(`cp -f "${backupPath}" "${tmpDest}"`, { stdio: "pipe" });
+                copied = true;
+            } catch (e3) {
+                try {
+                    execSync(`sudo cp -f "${backupPath}" "${tmpDest}"`, { stdio: "inherit" });
+                    copied = true;
+                } catch (e4) {
+                    throw e3;
+                }
             }
         }
         try {
             fs.renameSync(tmpDest, asarPath);
         } catch (renameErr) {
-            execSync(`mv -f "${tmpDest}" "${asarPath}"`, { stdio: "pipe" });
+            try {
+                execSync(`mv -f "${tmpDest}" "${asarPath}"`, { stdio: "pipe" });
+            } catch (mvErr) {
+                execSync(`sudo mv -f "${tmpDest}" "${asarPath}"`, { stdio: "inherit" });
+            }
         }
 
         try {

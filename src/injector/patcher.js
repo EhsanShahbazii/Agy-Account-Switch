@@ -9,11 +9,21 @@ const logger = require("../utils/logger");
 function safeCopy(src, dest) {
     try {
         fs.copyFileSync(src, dest);
-    } catch (err) {
+        return;
+    } catch (err) {}
+    try {
+        fs.writeFileSync(dest, fs.readFileSync(src));
+        return;
+    } catch (e2) {}
+    try {
+        execSync(`cp -f "${src}" "${dest}"`, { stdio: "pipe" });
+        return;
+    } catch (e3) {
         try {
-            fs.writeFileSync(dest, fs.readFileSync(src));
-        } catch (e2) {
-            execSync(`cp -f "${src}" "${dest}"`, { stdio: "pipe" });
+            execSync(`sudo cp -f "${src}" "${dest}"`, { stdio: "inherit" });
+            return;
+        } catch (e4) {
+            throw e3;
         }
     }
 }
@@ -111,7 +121,11 @@ class Patcher {
         try {
             fs.renameSync(tempDest, paths.ASAR_PATH);
         } catch (renameErr) {
-            execSync(`mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "pipe" });
+            try {
+                execSync(`mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "pipe" });
+            } catch (mvErr) {
+                execSync(`sudo mv -f "${tempDest}" "${paths.ASAR_PATH}"`, { stdio: "inherit" });
+            }
         }
 
         const newUnpacked = newAsar + ".unpacked";
